@@ -1,25 +1,9 @@
 """Database model tests."""
 import pytest
-from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from bsie.db.engine import create_engine, get_session_factory
-from bsie.db.base import Base
 from bsie.db.models import Statement, StateHistory
-
-
-@pytest.fixture
-async def db_session():
-    engine = create_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    session_factory = get_session_factory(engine)
-    async with session_factory() as session:
-        yield session
-
-    await engine.dispose()
 
 
 @pytest.mark.asyncio
