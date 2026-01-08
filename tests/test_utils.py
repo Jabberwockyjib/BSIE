@@ -1,5 +1,4 @@
 """Utility function tests."""
-import pytest
 import re
 from datetime import datetime, timezone
 

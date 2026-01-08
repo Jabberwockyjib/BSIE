@@ -1,6 +1,6 @@
 """State history model for audit trail."""
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from sqlalchemy import String, Integer, DateTime, ForeignKey, JSON
@@ -34,8 +34,8 @@ class StateHistory(Base):
 
     # Metadata
     worker_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    artifacts_created: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
-    transition_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    artifacts_created: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True)
+    transition_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     # Duration tracking
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

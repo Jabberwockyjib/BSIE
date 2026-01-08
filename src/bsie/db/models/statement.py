@@ -1,6 +1,6 @@
 """Statement database model."""
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import String, Integer, DateTime, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
@@ -43,7 +43,7 @@ class Statement(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Artifacts paths (JSON object mapping artifact name to path)
-    artifacts: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    artifacts: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

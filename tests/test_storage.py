@@ -1,6 +1,4 @@
 """Storage utilities tests."""
-import pytest
-from pathlib import Path
 
 from bsie.storage.paths import StoragePaths
 

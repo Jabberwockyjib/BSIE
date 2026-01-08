@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 from typing import Optional
 
 from fastapi import FastAPI
@@ -12,7 +13,7 @@ from bsie.config import get_settings
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan - startup and shutdown."""
     # Startup
     engine = app.state.engine

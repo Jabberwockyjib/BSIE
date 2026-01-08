@@ -4,7 +4,7 @@ import uvicorn
 from bsie.api.app import create_app
 
 
-def main():
+def main() -> None:
     """Run the BSIE application."""
     app = create_app()
     uvicorn.run(app, host="0.0.0.0", port=8000)
