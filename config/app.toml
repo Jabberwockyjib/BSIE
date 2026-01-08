@@ -1,0 +1,15 @@
+# BSIE Application Configuration
+
+[database]
+url = "postgresql+asyncpg://bsie:bsie@localhost:5432/bsie"
+
+[redis]
+url = "redis://localhost:6379/0"
+
+[storage]
+path = "./storage"
+
+[api]
+prefix = "/api/v1"
+
+debug = false
