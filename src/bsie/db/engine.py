@@ -1,5 +1,5 @@
 """Database engine and session management."""
-from typing import Any, Callable
+from typing import Any
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -14,6 +14,6 @@ def create_engine(url: str, **kwargs: Any) -> AsyncEngine:
     return create_async_engine(url, **kwargs)
 
 
-def get_session_factory(engine: AsyncEngine) -> Callable[[], AsyncSession]:
+def get_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     """Create a session factory for the given engine."""
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
