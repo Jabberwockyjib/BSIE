@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from bsie.db.engine import create_engine, get_session_factory
 from bsie.db.base import Base
-from bsie.db.models import Statement
+from bsie.db.models import Statement, StateHistory
 
 
 @pytest.fixture
@@ -56,3 +56,35 @@ async def test_statement_can_be_persisted(db_session: AsyncSession):
     loaded = result.scalar_one()
     assert loaded.sha256 == "b" * 64
     assert loaded.page_count == 3
+
+
+@pytest.mark.asyncio
+async def test_state_history_records_transitions(db_session: AsyncSession):
+    # Create statement
+    stmt = Statement(
+        id="stmt_history",
+        sha256="c" * 64,
+        original_filename="history.pdf",
+        file_size_bytes=1024,
+        page_count=1,
+        current_state="UPLOADED",
+    )
+    db_session.add(stmt)
+    await db_session.commit()
+
+    # Record state transition
+    history = StateHistory(
+        statement_id="stmt_history",
+        from_state=None,
+        to_state="UPLOADED",
+        trigger="upload",
+    )
+    db_session.add(history)
+    await db_session.commit()
+
+    result = await db_session.execute(
+        select(StateHistory).where(StateHistory.statement_id == "stmt_history")
+    )
+    records = result.scalars().all()
+    assert len(records) == 1
+    assert records[0].to_state == "UPLOADED"
