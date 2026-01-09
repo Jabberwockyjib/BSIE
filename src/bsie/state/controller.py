@@ -141,6 +141,12 @@ class StateController:
         statement.current_state = to_state.value
         statement.state_version += 1
 
+        # Store artifact paths
+        if artifacts:
+            if statement.artifacts is None:
+                statement.artifacts = {}
+            statement.artifacts.update(artifacts)
+
         # Record history
         history_entry = StateHistory(
             statement_id=statement_id,

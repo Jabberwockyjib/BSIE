@@ -308,3 +308,20 @@ async def test_create_initial_state(db_session):
     # Verify we can get it
     state = await controller.get_current_state("stmt_new001")
     assert state == State.UPLOADED
+
+
+@pytest.mark.asyncio
+async def test_transition_stores_artifact_paths(db_session_with_statement):
+    """Transition should store artifact paths on the statement."""
+    controller = StateController(session=db_session_with_statement)
+
+    await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="ingestion_complete",
+        artifacts={"ingest_receipt": {"path": "/artifacts/stmt_test001/ingest.json"}},
+    )
+
+    statement = await controller.get_statement("stmt_test001")
+    assert statement.artifacts is not None
+    assert "ingest_receipt" in statement.artifacts
