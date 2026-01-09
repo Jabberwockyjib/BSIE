@@ -218,3 +218,42 @@ async def test_transition_stale_version(db_session_with_statement):
     )
     assert result.success is False
     assert result.error_type == TransitionError.CONCURRENT_MODIFICATION
+
+
+@pytest.mark.asyncio
+async def test_force_transition(db_session_with_statement):
+    """Admin should be able to force invalid transitions."""
+    controller = StateController(session=db_session_with_statement)
+
+    # Force transition that would normally be invalid
+    result = await controller.force_transition(
+        statement_id="stmt_test001",
+        to_state=State.COMPLETED,
+        reason="Admin override for testing",
+        actor="admin_user",
+    )
+
+    assert result.success is True
+    assert result.current_state == "COMPLETED"
+    assert "forced" in result.metadata.get("transition_type", "")
+
+
+@pytest.mark.asyncio
+async def test_force_transition_records_actor(db_session_with_statement):
+    """Force transition should record who performed it."""
+    controller = StateController(session=db_session_with_statement)
+
+    await controller.force_transition(
+        statement_id="stmt_test001",
+        to_state=State.HUMAN_REVIEW_REQUIRED,
+        reason="Manual escalation",
+        actor="admin_user",
+    )
+
+    # Check history
+    result = await db_session_with_statement.execute(
+        select(StateHistory).where(StateHistory.statement_id == "stmt_test001")
+    )
+    history = result.scalar_one()
+    assert history.transition_metadata.get("actor") == "admin_user"
+    assert history.transition_metadata.get("reason") == "Manual escalation"

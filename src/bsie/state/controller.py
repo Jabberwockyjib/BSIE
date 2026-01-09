@@ -164,3 +164,60 @@ class StateController:
             artifacts_created=list(artifacts.keys()),
             metadata=metadata,
         )
+
+    async def force_transition(
+        self,
+        statement_id: str,
+        to_state: State,
+        reason: str,
+        actor: str,
+    ) -> TransitionResult:
+        """
+        Force a state transition (admin override).
+
+        This bypasses normal validation but still records full audit trail.
+        """
+        timestamp = datetime.now(timezone.utc)
+
+        statement = await self.get_statement(statement_id)
+        if statement is None:
+            return TransitionResult(
+                success=False,
+                previous_state="UNKNOWN",
+                current_state="UNKNOWN",
+                statement_id=statement_id,
+                timestamp=timestamp,
+                error=f"Statement {statement_id} not found",
+                error_type=TransitionError.STATE_NOT_FOUND,
+            )
+
+        from_state = State(statement.current_state)
+
+        # Update state (no validation)
+        statement.current_state = to_state.value
+        statement.state_version += 1
+
+        # Record history with override details
+        history_entry = StateHistory(
+            statement_id=statement_id,
+            from_state=from_state.value,
+            to_state=to_state.value,
+            trigger="admin_force",
+            transition_metadata={
+                "actor": actor,
+                "reason": reason,
+                "forced": True,
+            },
+        )
+        self._session.add(history_entry)
+
+        await self._session.commit()
+
+        return TransitionResult(
+            success=True,
+            previous_state=from_state.value,
+            current_state=to_state.value,
+            statement_id=statement_id,
+            timestamp=timestamp,
+            metadata={"transition_type": "forced", "actor": actor},
+        )
