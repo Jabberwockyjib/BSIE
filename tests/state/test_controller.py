@@ -367,3 +367,45 @@ async def test_transition_to_template_selected_binds_template(db_session_with_ro
     statement = await controller.get_statement("stmt_routed001")
     assert statement.template_id == "chase_checking_v1"
     assert statement.template_version == "1.0.0"
+
+
+@pytest.fixture
+async def db_session_with_extracting_statement(db_engine):
+    """Create a database session with a statement in EXTRACTING state."""
+    from bsie.db.models import Statement
+    from bsie.db.engine import get_session_factory
+
+    session_factory = get_session_factory(db_engine)
+    async with session_factory() as session:
+        statement = Statement(
+            id="stmt_extracting001",
+            sha256="d" * 64,
+            original_filename="extracting.pdf",
+            file_size_bytes=1024,
+            page_count=2,
+            current_state="EXTRACTING",
+            state_version=1,
+        )
+        session.add(statement)
+        await session.commit()
+        yield session
+
+
+@pytest.mark.asyncio
+async def test_transition_to_failure_state_tracks_error(db_session_with_extracting_statement):
+    """Transition to failure state should record error_code and error_message."""
+    controller = StateController(session=db_session_with_extracting_statement)
+
+    await controller.transition(
+        statement_id="stmt_extracting001",
+        to_state=State.EXTRACTION_FAILED,
+        trigger="extraction_error",
+        metadata={
+            "error_code": "E3001",
+            "error_message": "Table extraction failed on page 2",
+        },
+    )
+
+    statement = await controller.get_statement("stmt_extracting001")
+    assert statement.error_code == "E3001"
+    assert statement.error_message == "Table extraction failed on page 2"

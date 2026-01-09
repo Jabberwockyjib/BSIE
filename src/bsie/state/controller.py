@@ -152,6 +152,16 @@ class StateController:
             statement.template_id = metadata.get("template_id")
             statement.template_version = metadata.get("template_version")
 
+        # Track errors on failure states
+        failure_states = {
+            State.EXTRACTION_FAILED,
+            State.RECONCILIATION_FAILED,
+            State.HUMAN_REVIEW_REQUIRED,
+        }
+        if to_state in failure_states:
+            statement.error_code = metadata.get("error_code")
+            statement.error_message = metadata.get("error_message")
+
         # Record history
         history_entry = StateHistory(
             statement_id=statement_id,
