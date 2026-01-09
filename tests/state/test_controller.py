@@ -130,3 +130,21 @@ async def test_transition_not_found(db_session):
 
     assert result.success is False
     assert result.error_type == TransitionError.STATE_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_transition_missing_required_artifact(db_session_with_statement):
+    """Transition without required artifact should fail."""
+    controller = StateController(session=db_session_with_statement)
+
+    # INGESTED requires ingest_receipt artifact
+    result = await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="ingestion_complete",
+        artifacts={},  # Missing required artifact
+    )
+
+    assert result.success is False
+    assert result.error_type == TransitionError.MISSING_ARTIFACT
+    assert "ingest_receipt" in result.error

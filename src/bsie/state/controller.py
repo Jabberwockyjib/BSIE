@@ -110,6 +110,20 @@ class StateController:
                 error_type=TransitionError.INVALID_TRANSITION,
             )
 
+        # Check required artifacts
+        required_artifacts = self.get_required_artifacts(to_state)
+        missing = [a for a in required_artifacts if a not in artifacts]
+        if missing:
+            return TransitionResult(
+                success=False,
+                previous_state=from_state.value,
+                current_state=from_state.value,
+                statement_id=statement_id,
+                timestamp=timestamp,
+                error=f"Missing required artifacts: {', '.join(missing)}",
+                error_type=TransitionError.MISSING_ARTIFACT,
+            )
+
         # Update state
         statement.current_state = to_state.value
         statement.state_version += 1
