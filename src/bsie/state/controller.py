@@ -79,5 +79,49 @@ class StateController:
         Returns:
             TransitionResult indicating success or failure
         """
-        # Implementation will be added in subsequent tasks
-        raise NotImplementedError("Full transition logic coming in Task 3.4+")
+        artifacts = artifacts or {}
+        metadata = metadata or {}
+        timestamp = datetime.now(timezone.utc)
+
+        # Get current statement
+        statement = await self.get_statement(statement_id)
+        if statement is None:
+            return TransitionResult(
+                success=False,
+                previous_state="UNKNOWN",
+                current_state="UNKNOWN",
+                statement_id=statement_id,
+                timestamp=timestamp,
+                error=f"Statement {statement_id} not found",
+                error_type=TransitionError.STATE_NOT_FOUND,
+            )
+
+        from_state = State(statement.current_state)
+
+        # Validate transition
+        if not self.validate_transition(from_state, to_state):
+            return TransitionResult(
+                success=False,
+                previous_state=from_state.value,
+                current_state=from_state.value,
+                statement_id=statement_id,
+                timestamp=timestamp,
+                error=f"Invalid transition: {from_state.value} -> {to_state.value}",
+                error_type=TransitionError.INVALID_TRANSITION,
+            )
+
+        # Update state
+        statement.current_state = to_state.value
+        statement.state_version += 1
+
+        await self._session.commit()
+
+        return TransitionResult(
+            success=True,
+            previous_state=from_state.value,
+            current_state=to_state.value,
+            statement_id=statement_id,
+            timestamp=timestamp,
+            artifacts_created=list(artifacts.keys()),
+            metadata=metadata,
+        )

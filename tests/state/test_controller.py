@@ -75,3 +75,58 @@ async def test_get_statement_not_found(db_session):
     controller = StateController(session=db_session)
     statement = await controller.get_statement("stmt_nonexistent")
     assert statement is None
+
+
+@pytest.mark.asyncio
+async def test_transition_success(db_session_with_statement):
+    """Successful transition should update state."""
+    controller = StateController(session=db_session_with_statement)
+
+    result = await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="ingestion_complete",
+        artifacts={"ingest_receipt": {"statement_id": "stmt_test001"}},
+    )
+
+    assert result.success is True
+    assert result.previous_state == "UPLOADED"
+    assert result.current_state == "INGESTED"
+
+    # Verify state was persisted
+    new_state = await controller.get_current_state("stmt_test001")
+    assert new_state == State.INGESTED
+
+
+@pytest.mark.asyncio
+async def test_transition_invalid(db_session_with_statement):
+    """Invalid transition should fail."""
+    controller = StateController(session=db_session_with_statement)
+
+    result = await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.COMPLETED,  # Invalid from UPLOADED
+        trigger="test",
+    )
+
+    assert result.success is False
+    assert result.error_type == TransitionError.INVALID_TRANSITION
+
+    # Verify state was NOT changed
+    current_state = await controller.get_current_state("stmt_test001")
+    assert current_state == State.UPLOADED
+
+
+@pytest.mark.asyncio
+async def test_transition_not_found(db_session):
+    """Transition on non-existent statement should fail."""
+    controller = StateController(session=db_session)
+
+    result = await controller.transition(
+        statement_id="stmt_nonexistent",
+        to_state=State.INGESTED,
+        trigger="test",
+    )
+
+    assert result.success is False
+    assert result.error_type == TransitionError.STATE_NOT_FOUND
