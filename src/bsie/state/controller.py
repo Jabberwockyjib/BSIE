@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, Set, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bsie.db.models import Statement
+from bsie.db.models import Statement, StateHistory
 from bsie.state.constants import (
     State,
     TRANSITION_MATRIX,
@@ -127,6 +127,18 @@ class StateController:
         # Update state
         statement.current_state = to_state.value
         statement.state_version += 1
+
+        # Record history
+        history_entry = StateHistory(
+            statement_id=statement_id,
+            from_state=from_state.value,
+            to_state=to_state.value,
+            trigger=trigger,
+            worker_id=worker_id,
+            artifacts_created=list(artifacts.keys()),
+            transition_metadata=metadata,
+        )
+        self._session.add(history_entry)
 
         await self._session.commit()
 

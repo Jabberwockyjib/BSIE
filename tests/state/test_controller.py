@@ -3,6 +3,9 @@ import pytest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
+from sqlalchemy import select
+
+from bsie.db.models import StateHistory
 from bsie.state.controller import StateController
 from bsie.state.constants import State
 from bsie.state.types import TransitionResult, TransitionError
@@ -148,3 +151,29 @@ async def test_transition_missing_required_artifact(db_session_with_statement):
     assert result.success is False
     assert result.error_type == TransitionError.MISSING_ARTIFACT
     assert "ingest_receipt" in result.error
+
+
+@pytest.mark.asyncio
+async def test_transition_records_history(db_session_with_statement):
+    """Successful transition should record history."""
+    controller = StateController(session=db_session_with_statement)
+
+    await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="ingestion_complete",
+        artifacts={"ingest_receipt": {"statement_id": "stmt_test001"}},
+        worker_id="worker_01",
+    )
+
+    # Check history was recorded
+    result = await db_session_with_statement.execute(
+        select(StateHistory).where(StateHistory.statement_id == "stmt_test001")
+    )
+    history = result.scalars().all()
+
+    assert len(history) == 1
+    assert history[0].from_state == "UPLOADED"
+    assert history[0].to_state == "INGESTED"
+    assert history[0].trigger == "ingestion_complete"
+    assert history[0].worker_id == "worker_01"
