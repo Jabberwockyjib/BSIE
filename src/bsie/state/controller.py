@@ -230,3 +230,42 @@ class StateController:
             .order_by(StateHistory.created_at)
         )
         return list(result.scalars().all())
+
+    async def create_statement(
+        self,
+        statement_id: str,
+        sha256: str,
+        original_filename: str,
+        file_size_bytes: int,
+        page_count: int,
+        storage_path: Optional[str] = None,
+    ) -> Statement:
+        """
+        Create a new statement with initial UPLOADED state.
+
+        This is the ONLY way to create a statement - ensures
+        proper initial state.
+        """
+        statement = Statement(
+            id=statement_id,
+            sha256=sha256,
+            original_filename=original_filename,
+            file_size_bytes=file_size_bytes,
+            page_count=page_count,
+            storage_path=storage_path,
+            current_state=State.UPLOADED.value,
+            state_version=1,
+        )
+        self._session.add(statement)
+
+        # Record initial state in history
+        history_entry = StateHistory(
+            statement_id=statement_id,
+            from_state=None,
+            to_state=State.UPLOADED.value,
+            trigger="upload",
+        )
+        self._session.add(history_entry)
+
+        await self._session.commit()
+        return statement

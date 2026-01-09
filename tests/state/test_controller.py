@@ -286,3 +286,25 @@ async def test_get_state_history(db_session_with_statement):
     assert history[0].to_state == "INGESTED"
     assert history[1].from_state == "INGESTED"
     assert history[1].to_state == "CLASSIFIED"
+
+
+@pytest.mark.asyncio
+async def test_create_initial_state(db_session):
+    """Should create statement with initial UPLOADED state."""
+    controller = StateController(session=db_session)
+
+    statement = await controller.create_statement(
+        statement_id="stmt_new001",
+        sha256="b" * 64,
+        original_filename="new.pdf",
+        file_size_bytes=2048,
+        page_count=5,
+    )
+
+    assert statement.id == "stmt_new001"
+    assert statement.current_state == State.UPLOADED.value
+    assert statement.state_version == 1
+
+    # Verify we can get it
+    state = await controller.get_current_state("stmt_new001")
+    assert state == State.UPLOADED
