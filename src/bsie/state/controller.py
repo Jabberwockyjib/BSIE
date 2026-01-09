@@ -2,8 +2,10 @@
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Set, List
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bsie.db.models import Statement
 from bsie.state.constants import (
     State,
     TRANSITION_MATRIX,
@@ -36,6 +38,23 @@ class StateController:
     def get_required_artifacts(self, to_state: State) -> List[str]:
         """Get required artifacts to enter a state."""
         return STATE_REQUIRED_ARTIFACTS.get(to_state, [])
+
+    async def get_current_state(self, statement_id: str) -> Optional[State]:
+        """Get the current state of a statement."""
+        result = await self._session.execute(
+            select(Statement.current_state).where(Statement.id == statement_id)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        return State(row)
+
+    async def get_statement(self, statement_id: str) -> Optional[Statement]:
+        """Get a statement by ID."""
+        result = await self._session.execute(
+            select(Statement).where(Statement.id == statement_id)
+        )
+        return result.scalar_one_or_none()
 
     async def transition(
         self,
