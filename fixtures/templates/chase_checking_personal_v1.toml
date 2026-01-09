@@ -1,0 +1,28 @@
+# Test fixture: Chase Personal Checking Statement Template
+# Minimal version for testing purposes
+
+[metadata]
+template_id = "chase_checking_personal_v1"
+version = "1.0.0"
+bank_family = "chase"
+statement_type = "checking"
+segment = "personal"
+description = "Chase personal checking - test fixture"
+
+[detect]
+keywords = ["CHASE", "JPMorgan Chase Bank"]
+keyword_match_threshold = 1
+required_text = ["Account Activity"]
+detect_pages = [1]
+
+[extraction]
+method = "hybrid"
+primary_extractor = "camelot"
+
+[columns]
+expected_count = 4
+[columns.map]
+date = "Date"
+description = "Description"
+amount = "Amount"
+balance = "Balance"
