@@ -177,3 +177,44 @@ async def test_transition_records_history(db_session_with_statement):
     assert history[0].to_state == "INGESTED"
     assert history[0].trigger == "ingestion_complete"
     assert history[0].worker_id == "worker_01"
+
+
+@pytest.mark.asyncio
+async def test_transition_with_expected_version(db_session_with_statement):
+    """Transition should support optimistic locking."""
+    controller = StateController(session=db_session_with_statement)
+
+    # First transition should work with correct version
+    result = await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="ingestion_complete",
+        artifacts={"ingest_receipt": {"statement_id": "stmt_test001"}},
+        metadata={"expected_version": 1},
+    )
+    assert result.success is True
+
+
+@pytest.mark.asyncio
+async def test_transition_stale_version(db_session_with_statement):
+    """Transition with stale version should fail."""
+    controller = StateController(session=db_session_with_statement)
+
+    # First, do a successful transition to increment version
+    await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="test",
+        artifacts={"ingest_receipt": {}},
+    )
+
+    # Now try with old version - should fail
+    result = await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.CLASSIFIED,
+        trigger="test",
+        artifacts={"classification": {}},
+        metadata={"expected_version": 1},  # Old version
+    )
+    assert result.success is False
+    assert result.error_type == TransitionError.CONCURRENT_MODIFICATION

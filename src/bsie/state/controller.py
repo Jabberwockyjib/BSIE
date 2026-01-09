@@ -98,6 +98,19 @@ class StateController:
 
         from_state = State(statement.current_state)
 
+        # Check optimistic locking if expected_version is provided
+        expected_version = metadata.get("expected_version")
+        if expected_version is not None and statement.state_version != expected_version:
+            return TransitionResult(
+                success=False,
+                previous_state=from_state.value,
+                current_state=from_state.value,
+                statement_id=statement_id,
+                timestamp=timestamp,
+                error=f"Version mismatch: expected {expected_version}, got {statement.state_version}",
+                error_type=TransitionError.CONCURRENT_MODIFICATION,
+            )
+
         # Validate transition
         if not self.validate_transition(from_state, to_state):
             return TransitionResult(
