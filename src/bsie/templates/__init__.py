@@ -8,6 +8,11 @@ from bsie.templates.schema import (
 )
 from bsie.templates.parser import parse_template, TemplateParseError
 from bsie.templates.registry import TemplateRegistry
+from bsie.templates.dependencies import (
+    get_template_registry,
+    create_template_registry,
+    reset_template_registry,
+)
 
 __all__ = [
     "Template",
@@ -18,4 +23,7 @@ __all__ = [
     "parse_template",
     "TemplateParseError",
     "TemplateRegistry",
+    "get_template_registry",
+    "create_template_registry",
+    "reset_template_registry",
 ]
