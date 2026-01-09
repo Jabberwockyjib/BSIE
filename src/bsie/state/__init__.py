@@ -1,6 +1,7 @@
 """State controller package."""
 from bsie.state.constants import State, TRANSITION_MATRIX, STATE_TIMEOUTS, STATE_REQUIRED_ARTIFACTS
 from bsie.state.controller import StateController
+from bsie.state.dependencies import get_state_controller, create_state_controller
 from bsie.state.types import TransitionResult, TransitionError, TransitionRequest
 
 __all__ = [
@@ -12,4 +13,6 @@ __all__ = [
     "TRANSITION_MATRIX",
     "STATE_TIMEOUTS",
     "STATE_REQUIRED_ARTIFACTS",
+    "get_state_controller",
+    "create_state_controller",
 ]
