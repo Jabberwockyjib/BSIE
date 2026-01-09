@@ -409,3 +409,25 @@ async def test_transition_to_failure_state_tracks_error(db_session_with_extracti
     statement = await controller.get_statement("stmt_extracting001")
     assert statement.error_code == "E3001"
     assert statement.error_message == "Table extraction failed on page 2"
+
+
+@pytest.mark.asyncio
+async def test_is_timed_out(db_session_with_statement):
+    """Should check if statement is timed out based on state timeout."""
+    controller = StateController(session=db_session_with_statement)
+
+    # UPLOADED has a 30 second timeout, fresh statement should not be timed out
+    is_timed_out = await controller.is_timed_out("stmt_test001")
+    assert is_timed_out is False
+
+
+def test_get_state_timeout(controller):
+    """Should return timeout for a state."""
+    from bsie.state.constants import STATE_TIMEOUTS
+
+    timeout = controller.get_state_timeout(State.UPLOADED)
+    assert timeout == STATE_TIMEOUTS[State.UPLOADED]
+
+    # Terminal state has no timeout
+    timeout = controller.get_state_timeout(State.COMPLETED)
+    assert timeout is None

@@ -10,6 +10,7 @@ from bsie.state.constants import (
     State,
     TRANSITION_MATRIX,
     STATE_REQUIRED_ARTIFACTS,
+    STATE_TIMEOUTS,
     get_allowed_transitions,
     is_valid_transition,
 )
@@ -290,3 +291,27 @@ class StateController:
 
         await self._session.commit()
         return statement
+
+    def get_state_timeout(self, state: State) -> Optional[int]:
+        """Get timeout in seconds for a state (None = no timeout)."""
+        return STATE_TIMEOUTS.get(state)
+
+    async def is_timed_out(self, statement_id: str) -> bool:
+        """
+        Check if a statement has timed out in its current state.
+
+        Returns True if the statement has exceeded its state timeout.
+        Returns False if no timeout defined or not timed out.
+        """
+        statement = await self.get_statement(statement_id)
+        if statement is None:
+            return False
+
+        state = State(statement.current_state)
+        timeout = self.get_state_timeout(state)
+
+        if timeout is None:
+            return False
+
+        elapsed = (datetime.now(timezone.utc) - statement.updated_at).total_seconds()
+        return elapsed > timeout
