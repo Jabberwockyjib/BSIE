@@ -257,3 +257,32 @@ async def test_force_transition_records_actor(db_session_with_statement):
     history = result.scalar_one()
     assert history.transition_metadata.get("actor") == "admin_user"
     assert history.transition_metadata.get("reason") == "Manual escalation"
+
+
+@pytest.mark.asyncio
+async def test_get_state_history(db_session_with_statement):
+    """Should retrieve complete state history."""
+    controller = StateController(session=db_session_with_statement)
+
+    # Perform several transitions
+    await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.INGESTED,
+        trigger="ingest",
+        artifacts={"ingest_receipt": {}},
+    )
+    await controller.transition(
+        statement_id="stmt_test001",
+        to_state=State.CLASSIFIED,
+        trigger="classify",
+        artifacts={"classification": {}},
+    )
+
+    # Get history
+    history = await controller.get_state_history("stmt_test001")
+
+    assert len(history) == 2
+    assert history[0].from_state == "UPLOADED"
+    assert history[0].to_state == "INGESTED"
+    assert history[1].from_state == "INGESTED"
+    assert history[1].to_state == "CLASSIFIED"

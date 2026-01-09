@@ -221,3 +221,12 @@ class StateController:
             timestamp=timestamp,
             metadata={"transition_type": "forced", "actor": actor},
         )
+
+    async def get_state_history(self, statement_id: str) -> List[StateHistory]:
+        """Get complete state transition history for a statement."""
+        result = await self._session.execute(
+            select(StateHistory)
+            .where(StateHistory.statement_id == statement_id)
+            .order_by(StateHistory.created_at)
+        )
+        return list(result.scalars().all())
