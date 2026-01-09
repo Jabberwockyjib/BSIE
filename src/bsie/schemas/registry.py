@@ -20,7 +20,7 @@ from bsie.schemas.final_transactions import FinalTransactions
 class ValidationError(Exception):
     """Schema validation error."""
 
-    def __init__(self, message: str, errors: list | None = None):
+    def __init__(self, message: str, errors: list[Any] | None = None):
         super().__init__(message)
         self.errors = errors or []
 
