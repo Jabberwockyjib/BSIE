@@ -147,6 +147,11 @@ class StateController:
                 statement.artifacts = {}
             statement.artifacts.update(artifacts)
 
+        # Bind template on TEMPLATE_SELECTED
+        if to_state == State.TEMPLATE_SELECTED:
+            statement.template_id = metadata.get("template_id")
+            statement.template_version = metadata.get("template_version")
+
         # Record history
         history_entry = StateHistory(
             statement_id=statement_id,

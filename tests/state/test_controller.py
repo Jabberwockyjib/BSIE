@@ -325,3 +325,45 @@ async def test_transition_stores_artifact_paths(db_session_with_statement):
     statement = await controller.get_statement("stmt_test001")
     assert statement.artifacts is not None
     assert "ingest_receipt" in statement.artifacts
+
+
+@pytest.fixture
+async def db_session_with_routed_statement(db_engine):
+    """Create a database session with a statement in ROUTED state."""
+    from bsie.db.models import Statement
+    from bsie.db.engine import get_session_factory
+
+    session_factory = get_session_factory(db_engine)
+    async with session_factory() as session:
+        statement = Statement(
+            id="stmt_routed001",
+            sha256="c" * 64,
+            original_filename="routed.pdf",
+            file_size_bytes=1024,
+            page_count=2,
+            current_state="ROUTED",
+            state_version=1,
+        )
+        session.add(statement)
+        await session.commit()
+        yield session
+
+
+@pytest.mark.asyncio
+async def test_transition_to_template_selected_binds_template(db_session_with_routed_statement):
+    """Transition to TEMPLATE_SELECTED should bind template_id and template_version."""
+    controller = StateController(session=db_session_with_routed_statement)
+
+    await controller.transition(
+        statement_id="stmt_routed001",
+        to_state=State.TEMPLATE_SELECTED,
+        trigger="template_matched",
+        metadata={
+            "template_id": "chase_checking_v1",
+            "template_version": "1.0.0",
+        },
+    )
+
+    statement = await controller.get_statement("stmt_routed001")
+    assert statement.template_id == "chase_checking_v1"
+    assert statement.template_version == "1.0.0"
