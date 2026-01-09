@@ -1,8 +1,9 @@
 """Template registry for managing TOML templates."""
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
+from packaging.version import Version
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -148,3 +149,116 @@ class TemplateRegistry:
         await session.commit()
         logger.info(f"Synced {synced} templates to database")
         return synced
+
+    # Task 4.7: get_template_by_id
+    def get_template_by_id(self, template_id: str) -> Optional[Template]:
+        """
+        Get a template by its ID.
+
+        Args:
+            template_id: The template identifier.
+
+        Returns:
+            Template if found, None otherwise.
+        """
+        return self._templates.get(template_id)
+
+    # Task 4.8: find_templates_for_classification
+    def find_templates_for_classification(
+        self,
+        bank_family: str,
+        statement_type: str,
+        segment: Optional[str] = None,
+    ) -> List[Template]:
+        """
+        Find templates matching classification criteria.
+
+        Args:
+            bank_family: Bank family identifier (e.g., "chase").
+            statement_type: Statement type (e.g., "checking").
+            segment: Optional segment filter (e.g., "personal").
+
+        Returns:
+            List of matching templates.
+        """
+        matches = []
+        for template in self._templates.values():
+            meta = template.metadata
+            if meta.bank_family == bank_family and meta.statement_type == statement_type:
+                if segment is None or meta.segment == segment:
+                    matches.append(template)
+        return matches
+
+    # Task 4.9: template version comparison
+    def get_latest_template(
+        self,
+        bank_family: str,
+        statement_type: str,
+        segment: Optional[str] = None,
+    ) -> Optional[Template]:
+        """
+        Get the latest version template for given criteria.
+
+        Args:
+            bank_family: Bank family identifier.
+            statement_type: Statement type.
+            segment: Optional segment filter.
+
+        Returns:
+            Template with highest version, or None if no matches.
+        """
+        matches = self.find_templates_for_classification(
+            bank_family=bank_family,
+            statement_type=statement_type,
+            segment=segment,
+        )
+        if not matches:
+            return None
+
+        # Sort by semantic version, return highest
+        return max(matches, key=lambda t: Version(t.metadata.version))
+
+    # Task 4.11: template caching (clear_cache)
+    def clear_cache(self) -> None:
+        """Clear all cached templates."""
+        self._templates.clear()
+        self._file_paths.clear()
+        logger.debug("Template cache cleared")
+
+    # Task 4.12: template statistics
+    async def update_statistics(
+        self,
+        session: AsyncSession,
+        template_id: str,
+        statements_processed: int,
+        success_rate: float,
+    ) -> bool:
+        """
+        Update template statistics in database.
+
+        Args:
+            session: SQLAlchemy async session.
+            template_id: Template to update.
+            statements_processed: Number of statements processed.
+            success_rate: Success rate (0.0 to 1.0).
+
+        Returns:
+            True if updated, False if template not found.
+        """
+        result = await session.execute(
+            select(TemplateMetadata).where(
+                TemplateMetadata.template_id == template_id
+            )
+        )
+        meta = result.scalar_one_or_none()
+
+        if not meta:
+            logger.warning(f"Template not found for statistics update: {template_id}")
+            return False
+
+        meta.statements_processed = statements_processed
+        meta.success_rate = success_rate
+        await session.commit()
+
+        logger.debug(f"Updated statistics for {template_id}: processed={statements_processed}, rate={success_rate}")
+        return True
