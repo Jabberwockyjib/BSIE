@@ -1,8 +1,12 @@
 """Template registry for managing TOML templates."""
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from bsie.db.models import TemplateMetadata
 from bsie.templates.schema import Template
 from bsie.templates.parser import parse_template, TemplateParseError
 
@@ -31,6 +35,7 @@ class TemplateRegistry:
 
         self._templates_dir = templates_dir
         self._templates: Dict[str, Template] = {}
+        self._file_paths: Dict[str, Path] = {}  # template_id -> file_path
 
     @property
     def templates_dir(self) -> Path:
@@ -56,7 +61,9 @@ class TemplateRegistry:
             TemplateParseError: If parsing or validation fails.
         """
         template = parse_template(file_path)
-        self._templates[template.metadata.template_id] = template
+        template_id = template.metadata.template_id
+        self._templates[template_id] = template
+        self._file_paths[template_id] = file_path
         return template
 
     def load_all(self) -> int:
@@ -84,3 +91,60 @@ class TemplateRegistry:
 
         logger.info(f"Loaded {loaded} templates from {self._templates_dir}")
         return loaded
+
+    async def sync_to_database(
+        self, session: AsyncSession, git_sha: str
+    ) -> int:
+        """
+        Sync loaded template metadata to Postgres.
+
+        Creates or updates TemplateMetadata records for all loaded templates.
+
+        Args:
+            session: SQLAlchemy async session.
+            git_sha: Current Git SHA for version tracking.
+
+        Returns:
+            Number of templates synced.
+        """
+        synced = 0
+
+        for template_id, template in self._templates.items():
+            meta = template.metadata
+            file_path = self._file_paths.get(template_id)
+
+            # Check if already exists
+            result = await session.execute(
+                select(TemplateMetadata).where(
+                    TemplateMetadata.template_id == template_id
+                )
+            )
+            existing = result.scalar_one_or_none()
+
+            if existing:
+                # Update existing
+                existing.version = meta.version
+                existing.bank_family = meta.bank_family
+                existing.statement_type = meta.statement_type
+                existing.segment = meta.segment
+                existing.git_sha = git_sha
+                existing.file_path = str(file_path) if file_path else ""
+            else:
+                # Create new
+                new_meta = TemplateMetadata(
+                    template_id=template_id,
+                    version=meta.version,
+                    bank_family=meta.bank_family,
+                    statement_type=meta.statement_type,
+                    segment=meta.segment,
+                    git_sha=git_sha,
+                    file_path=str(file_path) if file_path else "",
+                    status="draft",
+                )
+                session.add(new_meta)
+
+            synced += 1
+
+        await session.commit()
+        logger.info(f"Synced {synced} templates to database")
+        return synced

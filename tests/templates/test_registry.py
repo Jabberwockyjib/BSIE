@@ -2,6 +2,9 @@
 import pytest
 from pathlib import Path
 
+from sqlalchemy import select
+
+from bsie.db.models import TemplateMetadata
 from bsie.templates.registry import TemplateRegistry
 
 
@@ -90,3 +93,55 @@ def test_load_all_skips_invalid_templates(tmp_path, sample_template_toml):
 
     assert loaded == 1
     assert "test_bank_checking_v1" in registry.templates
+
+
+@pytest.mark.asyncio
+async def test_sync_to_database(db_session, tmp_path, sample_template_toml):
+    """Registry should sync template metadata to Postgres."""
+    template_file = tmp_path / "test_bank" / "checking_v1.toml"
+    template_file.parent.mkdir(parents=True, exist_ok=True)
+    template_file.write_text(sample_template_toml)
+
+    registry = TemplateRegistry(templates_dir=tmp_path)
+    registry.load_all()
+
+    synced = await registry.sync_to_database(db_session, git_sha="abc123def")
+
+    assert synced == 1
+
+    # Verify in database
+    result = await db_session.execute(
+        select(TemplateMetadata).where(
+            TemplateMetadata.template_id == "test_bank_checking_v1"
+        )
+    )
+    meta = result.scalar_one()
+    assert meta.bank_family == "test_bank"
+    assert meta.git_sha == "abc123def"
+    assert meta.status == "draft"
+
+
+@pytest.mark.asyncio
+async def test_sync_updates_existing_metadata(db_session, tmp_path, sample_template_toml):
+    """Registry should update existing metadata on re-sync."""
+    template_file = tmp_path / "test.toml"
+    template_file.write_text(sample_template_toml)
+
+    registry = TemplateRegistry(templates_dir=tmp_path)
+    registry.load_all()
+
+    # First sync
+    await registry.sync_to_database(db_session, git_sha="sha_v1")
+
+    # Second sync with new git_sha
+    await registry.sync_to_database(db_session, git_sha="sha_v2")
+
+    # Should have updated, not duplicated
+    result = await db_session.execute(
+        select(TemplateMetadata).where(
+            TemplateMetadata.template_id == "test_bank_checking_v1"
+        )
+    )
+    records = result.scalars().all()
+    assert len(records) == 1
+    assert records[0].git_sha == "sha_v2"
