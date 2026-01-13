@@ -1,9 +1,12 @@
 """PDF ingestion service."""
+import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bsie.schemas import IngestReceipt
@@ -11,6 +14,8 @@ from bsie.state.controller import StateController
 from bsie.state.constants import State
 from bsie.storage import StoragePaths
 from bsie.utils import generate_statement_id, compute_sha256
+
+logger = logging.getLogger(__name__)
 
 
 class IngestService:
@@ -50,8 +55,8 @@ class IngestService:
         storage_path = self._storage.get_pdf_path(statement_id)
         shutil.copy2(file_path, storage_path)
 
-        # Get page count (simplified - will use pypdf in next task)
-        page_count = self._get_page_count(storage_path)
+        # Analyze PDF
+        page_count, has_text_layer = self._analyze_pdf(storage_path)
 
         # Create statement in UPLOADED state
         await self._state_controller.create_statement(
@@ -72,8 +77,10 @@ class IngestService:
             original_path=str(file_path),
             uploaded_at=datetime.now(timezone.utc),
             file_size_bytes=file_size,
+            has_text_layer=has_text_layer,
             original_filename=original_filename,
             uploaded_by=uploaded_by,
+            mime_type="application/pdf",
         )
 
         # Save receipt artifact
@@ -90,7 +97,47 @@ class IngestService:
 
         return receipt
 
-    def _get_page_count(self, pdf_path: Path) -> int:
-        """Get page count from PDF. Simplified implementation."""
-        # Will be updated with pypdf in Task 5.2
-        return 1
+    def _analyze_pdf(self, pdf_path: Path) -> Tuple[int, bool]:
+        """
+        Analyze PDF to get page count and detect text layer.
+
+        Args:
+            pdf_path: Path to the PDF file.
+
+        Returns:
+            Tuple of (page_count, has_text_layer).
+        """
+        try:
+            reader = PdfReader(pdf_path)
+            page_count = len(reader.pages)
+
+            # Check if any page has extractable text
+            has_text_layer = False
+            for page in reader.pages[:3]:  # Check first 3 pages
+                text = page.extract_text()
+                if text and len(text.strip()) > 50:
+                    has_text_layer = True
+                    break
+
+            return page_count, has_text_layer
+        except PdfReadError as e:
+            logger.warning(f"Failed to analyze PDF {pdf_path}: {e}")
+            return 1, False
+
+    def validate_pdf(self, file_path: Path) -> bool:
+        """
+        Validate that a file is a valid PDF.
+
+        Args:
+            file_path: Path to the file.
+
+        Returns:
+            True if valid PDF, False otherwise.
+        """
+        try:
+            reader = PdfReader(file_path)
+            # Try to access pages to ensure it's readable
+            _ = len(reader.pages)
+            return True
+        except (PdfReadError, Exception):
+            return False
