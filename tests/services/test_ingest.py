@@ -23,13 +23,6 @@ def ingest_service(db_session, storage):
     )
 
 
-@pytest.fixture
-def sample_pdf(tmp_path):
-    """Create a minimal PDF for testing."""
-    pdf_path = tmp_path / "sample.pdf"
-    # Minimal valid PDF content
-    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
-    return pdf_path
 
 
 @pytest.mark.asyncio
@@ -95,3 +88,22 @@ async def test_ingest_transitions_to_ingested(ingest_service, sample_pdf, db_ses
 
     from bsie.state.constants import State
     assert state == State.INGESTED
+
+
+def test_validate_pdf_accepts_valid_pdf(ingest_service, sample_pdf):
+    """validate_pdf should return True for valid PDF."""
+    assert ingest_service.validate_pdf(sample_pdf) is True
+
+
+def test_validate_pdf_rejects_non_pdf(ingest_service, tmp_path):
+    """validate_pdf should return False for non-PDF files."""
+    non_pdf = tmp_path / "not_a_pdf.txt"
+    non_pdf.write_text("This is not a PDF file")
+    assert ingest_service.validate_pdf(non_pdf) is False
+
+
+def test_validate_pdf_rejects_corrupted_pdf(ingest_service, tmp_path):
+    """validate_pdf should return False for corrupted PDF."""
+    corrupted = tmp_path / "corrupted.pdf"
+    corrupted.write_bytes(b"%PDF-1.4\ngarbage\n%%EOF")
+    assert ingest_service.validate_pdf(corrupted) is False

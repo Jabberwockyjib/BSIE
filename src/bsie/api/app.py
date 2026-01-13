@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import FastAPI
 
-from bsie.api.routes import health
+from bsie.api.routes import health, statements
 from bsie.api.deps import init_db
 from bsie.db.engine import create_engine
 from bsie.db.base import Base
@@ -44,5 +44,6 @@ def create_app(database_url: Optional[str] = None) -> FastAPI:
 
     # Register routes
     app.include_router(health.router)
+    app.include_router(statements.router)
 
     return app
